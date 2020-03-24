@@ -41,8 +41,8 @@ For detailed documentation you can visit
 [Read the Docs](https://defectdojo.readthedocs.io/).
 
 ## Supported Installation Options
-
-* [Setup.bash](https://github.com/DefectDojo/django-DefectDojo/blob/master/setup/README.MD)
+* [Kubernetes](KUBERNETES.md)
+* [Setup.bash](https://github.com/DefectDojo/django-DefectDojo/blob/dev/setup/README.MD)
 * [Docker](DOCKER.md)
 
 ## Getting Started
@@ -108,7 +108,7 @@ Project Moderators can help you with pull requests or feedback on dev ideas.
 * [Fred Blaise](https://www.linkedin.com/in/fredblaise/)
 * Saurabh kumar
 * Cody Maffucci 
-
+* Pascal Trovatelli / [Sopra Steria](https://www.soprasteria.com/)
 
 ## Hall of Fame
 
@@ -116,7 +116,6 @@ Project Moderators can help you with pull requests or feedback on dev ideas.
     DefectDojo Maintainer for years and wrote some of Dojo's core functionality.
 * Jay Paz ([@jjpaz](https://twitter.com/jjpaz)) – Jay was a DefectDojo
   maintainer for years. He performed Dojo's first UI overhaul, optimized code structure/features, and added numerous enhancements.
-
 
 ## Contributing
 
@@ -144,7 +143,6 @@ Proceeds are used for testing, infrastructure, etc.
 [![Xing](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/XING_logo.png)](https://corporate.xing.com/en/about-xing/security/)
 [![10Security](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/10Security-logo.png)](https://10security.com/services-by-technology/defectdojo-commercial-support/)
 [![GCSecurity](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/gc_logo_2018.png)](https://gcsec.com.br/)
-[![ISAAC](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/isaac.png)](https://isaac.nl "ISAAC")
 [![Timo-Pagel](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/timo-pagel-logo.png )](https://pagel.pro/)
 [![SDA-SE](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/sda-se-logo.png)](https://sda-se.com/)
 [![Signal-Iduna](https://raw.githubusercontent.com/DefectDojo/Documentation/master/doc/img/signal-iduna.png)](https://signal-iduna.de/)

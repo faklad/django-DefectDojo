@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime
 import operator
+import base64
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.contrib import messages
@@ -36,6 +37,7 @@ from dojo.tasks import update_epic_task, add_epic_task
 from functools import reduce
 
 logger = logging.getLogger(__name__)
+parse_logger = logging.getLogger('dojo')
 
 
 @user_passes_test(lambda u: u.is_staff)
@@ -65,24 +67,17 @@ def engagement_calendar(request):
 
 @user_passes_test(lambda u: u.is_staff)
 def engagement(request):
+    products_with_engagements = Product.objects.filter(~Q(engagement=None), engagement__active=True).distinct()
     filtered = EngagementFilter(
         request.GET,
-        queryset=Product.objects.filter(
-            ~Q(engagement=None),
-            engagement__active=True,
-        ).distinct())
+        queryset=products_with_engagements.prefetch_related('engagement_set', 'prod_type', 'engagement_set__lead',
+                                                            'engagement_set__test_set__lead', 'engagement_set__test_set__test_type'))
     prods = get_page_items(request, filtered.qs, 25)
     name_words = [
-        product.name for product in Product.objects.filter(
-            ~Q(engagement=None),
-            engagement__active=True,
-        ).distinct()
+        product.name for product in products_with_engagements.only('name')
     ]
     eng_words = [
-        engagement.name for product in Product.objects.filter(
-            ~Q(engagement=None),
-            engagement__active=True,
-        ).distinct() for engagement in product.engagement_set.all()
+        engagement.name for engagement in Engagement.objects.filter(active=True)
     ]
 
     add_breadcrumb(
@@ -101,21 +96,19 @@ def engagement(request):
 
 @user_passes_test(lambda u: u.is_staff)
 def engagements_all(request):
+
+    products_with_engagements = Product.objects.filter(~Q(engagement=None)).distinct()
     filtered = EngagementFilter(
         request.GET,
-        queryset=Product.objects.filter(
-            ~Q(engagement=None),
-        ).distinct())
+        queryset=products_with_engagements.prefetch_related('engagement_set', 'prod_type', 'engagement_set__lead',
+                                                            'engagement_set__test_set__lead', 'engagement_set__test_set__test_type'))
+
     prods = get_page_items(request, filtered.qs, 25)
     name_words = [
-        product.name for product in Product.objects.filter(
-            ~Q(engagement=None),
-        ).distinct()
+        product.name for product in products_with_engagements.only('name')
     ]
     eng_words = [
-        engagement.name for product in Product.objects.filter(
-            ~Q(engagement=None),
-        ).distinct() for engagement in product.engagement_set.all()
+        engagement.name for engagement in Engagement.objects.filter(active=True)
     ]
 
     add_breadcrumb(
@@ -387,7 +380,7 @@ def view_engagement(request, eid):
             'risk': eng.risk_path,
             'form': form,
             'risks_accepted': risks_accepted,
-            'can_add_risk': len(eng_findings),
+            'can_add_risk': eng_findings.count(),
             'jissue': jissue,
             'jconf': jconf,
             'accepted_findings': accepted_findings,
@@ -555,7 +548,17 @@ def import_scan_results(request, eid=None, pid=None):
                     new_f.cred_id = cred_user.cred_id
                     new_f.save()
 
-            parser = import_parser_factory(file, t, active, verified)
+            try:
+                parser = import_parser_factory(file, t, active, verified)
+            except Exception as e:
+                messages.add_message(request,
+                                     messages.ERROR,
+                                     "An error has occurred in the parser, please see error "
+                                     "log for details.",
+                                     extra_tags='alert-danger')
+                parse_logger.exception(e)
+                parse_logger.error("Error in parser: {}".format(str(e)))
+                return HttpResponseRedirect(reverse('import_scan_results', args=(eid,)))
 
             try:
                 for item in parser.items:
@@ -594,8 +597,8 @@ def import_scan_results(request, eid=None, pid=None):
                             else:
                                 burp_rr = BurpRawRequestResponse(
                                     finding=item,
-                                    burpRequestBase64=req_resp["req"].encode("utf-8"),
-                                    burpResponseBase64=req_resp["resp"].encode("utf-8"),
+                                    burpRequestBase64=base64.b64encode(req_resp["req"].encode("utf-8")),
+                                    burpResponseBase64=base64.b64encode(req_resp["resp"].encode("utf-8")),
                                 )
                             burp_rr.clean()
                             burp_rr.save()
@@ -603,8 +606,8 @@ def import_scan_results(request, eid=None, pid=None):
                     if item.unsaved_request is not None and item.unsaved_response is not None:
                         burp_rr = BurpRawRequestResponse(
                             finding=item,
-                            burpRequestBase64=item.unsaved_request.encode("utf-8"),
-                            burpResponseBase64=item.unsaved_response.encode("utf-8"),
+                            burpRequestBase64=base64.b64encode(item.unsaved_request.encode()),
+                            burpResponseBase64=base64.b64encode(item.unsaved_response.encode()),
                         )
                         burp_rr.clean()
                         burp_rr.save()

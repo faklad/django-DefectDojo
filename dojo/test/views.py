@@ -21,7 +21,7 @@ from django.contrib.admin.utils import NestedObjects
 from django.db import DEFAULT_DB_ALIAS
 from tagging.models import Tag
 
-from dojo.filters import TemplateFindingFilter
+from dojo.filters import TemplateFindingFilter, OpenFindingFilter
 from dojo.forms import NoteForm, TestForm, FindingForm, \
     DeleteTestForm, AddFindingForm, \
     ImportScanForm, ReImportScanForm, FindingBulkUpdateForm, JIRAFindingForm
@@ -32,10 +32,10 @@ from dojo.tasks import add_issue_task, update_issue_task
 from functools import reduce
 
 logger = logging.getLogger(__name__)
-
+parse_logger = logging.getLogger('dojo')
 
 def view_test(request, tid):
-    test = Test.objects.get(id=tid)
+    test = get_object_or_404(Test, pk=tid)
     prod = test.engagement.product
     auth = request.user.is_staff or request.user in prod.authorized_users.all()
     tags = Tag.objects.usage_for_model(Finding)
@@ -45,6 +45,7 @@ def view_test(request, tid):
     notes = test.notes.all()
     person = request.user.username
     findings = Finding.objects.filter(test=test).order_by('numerical_severity')
+    findings = OpenFindingFilter(request.GET, queryset=findings)
     stub_findings = Stub_Finding.objects.filter(test=test)
     cred_test = Cred_Mapping.objects.filter(test=test).select_related('cred_id').order_by('cred_id')
     creds = Cred_Mapping.objects.filter(engagement=test.engagement).select_related('cred_id').order_by('cred_id')
@@ -68,7 +69,7 @@ def view_test(request, tid):
     else:
         form = NoteForm()
 
-    fpage = get_page_items(request, findings, 25)
+    fpage = get_page_items(request, findings.qs, 25)
     sfpage = get_page_items(request, stub_findings, 25)
     show_re_upload = any(test.test_type.name in code for code in ImportScanForm.SCAN_TYPE_CHOICES)
 
@@ -117,7 +118,8 @@ def view_test(request, tid):
                   {'test': test,
                    'product_tab': product_tab,
                    'findings': fpage,
-                   'findings_count': findings.count(),
+                   'filtered': findings,
+                   'findings_count': findings.qs.count(),
                    'stub_findings': sfpage,
                    'form': form,
                    'notes': notes,
@@ -547,8 +549,8 @@ def finding_bulk_update(request, tid):
                     calculate_grade(test.engagement.product)
 
                 for finding in finds:
-                    from dojo.tasks import async_tool_issue_updater
-                    async_tool_issue_updater.delay(finding)
+                    from dojo.tools import tool_issue_updater
+                    tool_issue_updater.async_tool_issue_update(finding)
 
                     if JIRA_PKey.objects.filter(product=finding.test.engagement.product).count() == 0:
                         log_jira_alert('Finding cannot be pushed to jira as there is no jira configuration for this product.', finding)
@@ -600,6 +602,15 @@ def re_import_scan_results(request, tid):
                 parser = import_parser_factory(file, t, active, verified)
             except ValueError:
                 raise Http404()
+            except Exception as e:
+                messages.add_message(request,
+                                     messages.ERROR,
+                                     "An error has occurred in the parser, please see error "
+                                     "log for details.",
+                                     extra_tags='alert-danger')
+                parse_logger.exception(e)
+                parse_logger.error("Error in parser: {}".format(str(e)))
+                return HttpResponseRedirect(reverse('re_import_scan_results', args=(t.id,)))
 
             try:
                 items = parser.items
@@ -649,7 +660,8 @@ def re_import_scan_results(request, tid):
                         new_items.append(find.id)
                     else:
                         item.test = t
-                        item.date = scan_date
+                        if item.date == timezone.now().date():
+                            item.date = t.target_start
                         item.reporter = request.user
                         item.last_reviewed = timezone.now()
                         item.last_reviewed_by = request.user
@@ -671,16 +683,16 @@ def re_import_scan_results(request, tid):
                                 else:
                                     burp_rr = BurpRawRequestResponse(
                                         finding=item,
-                                        burpRequestBase64=req_resp["req"].encode("utf-8"),
-                                        burpResponseBase64=req_resp["resp"].encode("utf-8"),
+                                        burpRequestBase64=base64.b64encode(req_resp["req"].encode("utf-8")),
+                                        burpResponseBase64=base64.b64encode(req_resp["resp"].encode("utf-8")),
                                     )
                                 burp_rr.clean()
                                 burp_rr.save()
 
                         if item.unsaved_request is not None and item.unsaved_response is not None:
                             burp_rr = BurpRawRequestResponse(finding=find,
-                                                             burpRequestBase64=item.unsaved_request.encode("utf-8"),
-                                                             burpResponseBase64=item.unsaved_response.encode("utf-8"),
+                                                             burpRequestBase64=base64.b64encode(item.unsaved_request.encode()),
+                                                             burpResponseBase64=base64.b64encode(item.unsaved_response.encode()),
                                                              )
                             burp_rr.clean()
                             burp_rr.save()

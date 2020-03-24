@@ -300,7 +300,8 @@ class ImportScanForm(forms.Form):
                          ("Veracode Scan", "Veracode Scan"),
                          ("Checkmarx Scan", "Checkmarx Scan"),
                          ("Checkmarx Scan detailed", "Checkmarx Scan detailed"),
-                         ("Crashtest Security Scan", "Crashtest Security Scan"),
+                         ("Crashtest Security JSON File", "Crashtest Security JSON File"),
+                         ("Crashtest Security XML File", "Crashtest Security XML File"),
                          ("ZAP Scan", "ZAP Scan"),
                          ("Arachni Scan", "Arachni Scan"),
                          ("VCG Scan", "VCG Scan"),
@@ -343,6 +344,7 @@ class ImportScanForm(forms.Form):
                          ("Twistlock Image Scan", "Twistlock Image Scan"),
                          ("Kiuwan Scan", "Kiuwan Scan"),
                          ("Blackduck Hub Scan", "Blackduck Hub Scan"),
+                         ("Blackduck Component Risk", "Blackduck Component Risk"),
                          ("Openscap Vulnerability Scan", "Openscap Vulnerability Scan"),
                          ("Wapiti Scan", "Wapiti Scan"),
                          ("Immuniweb Scan", "Immuniweb Scan"),
@@ -362,7 +364,10 @@ class ImportScanForm(forms.Form):
                          ("HackerOne Cases", "HackerOne Cases"),
                          ("Xanitizer Scan", "Xanitizer Scan"),
                          ("Outpost24 Scan", "Outpost24 Scan"),
-                         ("Trivy Scan", "Trivy Scan"))
+                         ("Burp Enterprise Scan", "Burp Enterprise Scan"),
+                         ("DSOP Scan", "DSOP Scan"),
+                         ("Trivy Scan", "Trivy Scan"),
+                         ("Anchore Enterprise Policy Check", "Anchore Enterprise Policy Check"))
 
     SORTED_SCAN_TYPE_CHOICES = sorted(SCAN_TYPE_CHOICES, key=lambda x: x[1])
     scan_date = forms.DateTimeField(
@@ -384,7 +389,7 @@ class ImportScanForm(forms.Form):
                            help_text="Add tags that help describe this scan.  "
                                      "Choose from the list or add new tags.  Press TAB key to add.")
     file = forms.FileField(widget=forms.widgets.FileInput(
-        attrs={"accept": ".xml, .csv, .nessus, .json, .html, .js, .zip"}),
+        attrs={"accept": ".xml, .csv, .nessus, .json, .html, .js, .zip, .xlsx"}),
         label="Choose report file",
         required=False)
 
@@ -1017,8 +1022,9 @@ class ApplyFindingTemplateForm(forms.Form):
                                      "Choose from the list or add new tags.  Press TAB key to add.")
 
     def __init__(self, template=None, *args, **kwargs):
-        tags = Tag.objects.usage_for_model(Finding_Template)
-        t = [(tag.name, tag.name) for tag in tags]
+        # django-tagging apparently can not filter for multiple models at once
+        tags = Tag.objects.usage_for_model(Finding_Template) + Tag.objects.usage_for_model(Finding)
+        t = sorted({(tag.name, tag.name) for tag in tags})
         super(ApplyFindingTemplateForm, self).__init__(*args, **kwargs)
         self.fields['tags'].widget.choices = t
         self.template = template
